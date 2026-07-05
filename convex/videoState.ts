@@ -28,10 +28,14 @@ export const update = mutation({
       .withIndex("by_room", (q) => q.eq("roomId", args.roomId))
       .unique();
 
+    const episodeChanged =
+      state && (state.season !== args.season || state.episode !== args.episode);
+
     const patch = {
       isPlaying: args.isPlaying,
       season: args.season,
       episode: args.episode,
+      startedAt: episodeChanged || !state ? Date.now() : state.startedAt,
       updatedBy: args.sessionId,
       updatedAt: Date.now(),
     };
@@ -42,12 +46,7 @@ export const update = mutation({
       await ctx.db.insert("videoState", { roomId: args.roomId, ...patch });
     }
 
-    // Post a system message when episode changes
-    if (
-      state &&
-      (state.season !== args.season || state.episode !== args.episode)
-    ) {
-      const room2 = await ctx.db.get(args.roomId);
+    if (episodeChanged) {
       await ctx.db.insert("messages", {
         roomId: args.roomId,
         sessionId: "system",

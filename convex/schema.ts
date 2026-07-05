@@ -34,6 +34,7 @@ export default defineSchema({
     isPlaying: v.boolean(),
     episode: v.optional(v.number()),
     season: v.optional(v.number()),
+    startedAt: v.optional(v.number()), // timestamp when current episode/movie started
     updatedBy: v.string(),
     updatedAt: v.number(),
   }).index("by_room", ["roomId"]),

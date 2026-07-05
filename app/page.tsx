@@ -5,6 +5,7 @@ import ContentCard from "@/components/ContentCard";
 import type { ContentItem } from "@/components/ContentCard";
 import CreateRoomModal from "@/components/CreateRoomModal";
 import UsernameModal from "@/components/UsernameModal";
+import RoomHistory from "@/components/RoomHistory";
 import { getUsername, getSessionId } from "@/lib/session";
 
 type Tab = "series" | "movies" | "animes";
@@ -137,6 +138,8 @@ export default function Home() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+        <RoomHistory />
+
         <div className="space-y-1">
           <h1 className="text-2xl font-bold text-white">Explorar contenido</h1>
           <p className="text-zinc-400 text-sm">

@@ -1,15 +1,19 @@
 "use client";
-import { useEffect, useState, useCallback, use } from "react";
+import { useEffect, useState, useCallback, use, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useRouter } from "next/navigation";
 import VideoPlayer from "@/components/VideoPlayer";
 import ChatPanel from "@/components/ChatPanel";
+import MobileChatDrawer from "@/components/MobileChatDrawer";
 import EpisodeSelector from "@/components/EpisodeSelector";
 import ParticipantList from "@/components/ParticipantList";
 import UsernameModal from "@/components/UsernameModal";
+import ToastContainer, { showToast } from "@/components/Toast";
 import { getSessionId, getUsername } from "@/lib/session";
+import { saveToHistory } from "@/lib/history";
+import { tmdbImage } from "@/lib/vimeus";
 
 export default function RoomPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -19,13 +23,18 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
   const [username, setUsername] = useState<string | null>(null);
   const [joined, setJoined] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const roomId = id as Id<"rooms">;
   const room = useQuery(api.rooms.get, { roomId });
   const videoState = useQuery(api.videoState.get, { roomId });
+  const participants = useQuery(api.rooms.listParticipants, { roomId });
 
   const join = useMutation(api.rooms.join);
   const ping = useMutation(api.rooms.ping);
+
+  // Track previous participant count to detect joins
+  const prevParticipantIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const sid = getSessionId();
@@ -44,17 +53,44 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
   );
 
   useEffect(() => {
-    if (username && sessionId && !joined) {
-      handleJoin(username);
-    }
+    if (username && sessionId && !joined) handleJoin(username);
   }, [username, sessionId, joined, handleJoin]);
 
-  // Heartbeat to keep participant "online"
+  // Heartbeat
   useEffect(() => {
     if (!joined || !sessionId) return;
-    const id = setInterval(() => ping({ roomId, sessionId }), 15_000);
-    return () => clearInterval(id);
+    const timer = setInterval(() => ping({ roomId, sessionId }), 15_000);
+    return () => clearInterval(timer);
   }, [joined, sessionId, ping, roomId]);
+
+  // Save to history when room loads
+  useEffect(() => {
+    if (!room || !joined) return;
+    saveToHistory({
+      roomId: id,
+      title: room.title,
+      poster: room.poster,
+      contentType: room.contentType,
+      roomName: room.name,
+    });
+  }, [room, joined, id]);
+
+  // Join notifications — detect new participants
+  useEffect(() => {
+    if (!participants) return;
+    const currentIds = new Set(participants.map((p) => p.sessionId));
+    if (prevParticipantIds.current.size === 0) {
+      // First load — populate without notifying
+      prevParticipantIds.current = currentIds;
+      return;
+    }
+    for (const p of participants) {
+      if (!prevParticipantIds.current.has(p.sessionId) && p.sessionId !== sessionId) {
+        showToast(`👋 ${p.username} se unió a la sala`);
+      }
+    }
+    prevParticipantIds.current = currentIds;
+  }, [participants, sessionId]);
 
   const copyLink = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -74,10 +110,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
     return (
       <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center gap-4">
         <p className="text-white text-lg">Sala no encontrada</p>
-        <button
-          onClick={() => router.push("/")}
-          className="text-violet-400 hover:text-violet-300 text-sm transition"
-        >
+        <button onClick={() => router.push("/")} className="text-violet-400 hover:text-violet-300 text-sm transition">
           ← Volver al inicio
         </button>
       </div>
@@ -85,14 +118,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
   }
 
   if (!username) {
-    return (
-      <UsernameModal
-        onDone={(name) => {
-          setUsername(name);
-          handleJoin(name);
-        }}
-      />
-    );
+    return <UsernameModal onDone={(name) => { setUsername(name); handleJoin(name); }} />;
   }
 
   const isHost = sessionId === room.hostSessionId;
@@ -102,37 +128,43 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
 
   return (
     <div className="h-screen bg-zinc-950 flex flex-col overflow-hidden">
-      {/* Top bar */}
+      <ToastContainer />
+
+      {/* Mobile chat drawer */}
+      <MobileChatDrawer
+        open={chatOpen}
+        onClose={() => setChatOpen(false)}
+        roomId={roomId}
+        sessionId={sessionId}
+        username={username}
+      />
+
+      {/* Header */}
       <header className="flex-shrink-0 border-b border-zinc-800 px-4 py-3 flex items-center gap-3">
-        <button
-          onClick={() => router.push("/")}
-          className="text-zinc-400 hover:text-white transition text-sm"
-        >
-          ←
-        </button>
+        <button onClick={() => router.push("/")} className="text-zinc-400 hover:text-white transition text-sm">←</button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-white font-semibold text-sm truncate">{room.name}</h1>
-            <span className="text-zinc-500 text-xs">·</span>
-            <span className="text-zinc-400 text-xs truncate">{room.title}</span>
+            {room.poster && (
+              <img
+                src={tmdbImage(room.poster, "w92")}
+                alt={room.title}
+                className="w-6 h-9 object-cover rounded hidden sm:block"
+              />
+            )}
+            <span className="text-white font-semibold text-sm truncate">{room.name}</span>
+            <span className="text-zinc-500 text-xs hidden sm:inline">·</span>
+            <span className="text-zinc-400 text-xs truncate hidden sm:inline">{room.title}</span>
             {isSeriesLike && currentSeason && currentEpisode && (
-              <>
-                <span className="text-zinc-500 text-xs">·</span>
-                <span className="text-violet-400 text-xs">
-                  T{currentSeason}E{currentEpisode}
-                </span>
-              </>
+              <span className="text-violet-400 text-xs">T{currentSeason}·E{currentEpisode}</span>
             )}
             {isHost && (
-              <span className="text-xs bg-violet-900/50 text-violet-300 border border-violet-700 px-2 py-0.5 rounded-full">
-                Host
-              </span>
+              <span className="text-xs bg-violet-900/50 text-violet-300 border border-violet-700 px-2 py-0.5 rounded-full">Host</span>
             )}
           </div>
         </div>
         <button
           onClick={copyLink}
-          className="flex-shrink-0 flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-white text-xs px-3 py-1.5 rounded-lg transition"
+          className="flex-shrink-0 bg-zinc-800 hover:bg-zinc-700 text-white text-xs px-3 py-1.5 rounded-lg transition"
         >
           {copied ? "✓ Copiado" : "Invitar"}
         </button>
@@ -141,18 +173,27 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
       <div className="flex-1 flex overflow-hidden">
         {/* Video column */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Video fills remaining height */}
           <div className="flex-1 min-h-0 bg-black">
             <VideoPlayer
               embedUrl={room.embedUrl}
               season={currentSeason}
               episode={currentEpisode}
+              startedAt={videoState?.startedAt}
             />
           </div>
 
-          {/* Controls bar — always visible below video */}
+          {/* Controls bar */}
           <div className="flex-shrink-0 border-t border-zinc-800 bg-zinc-950 px-4 py-3 space-y-2.5">
-            <ParticipantList roomId={roomId} hostSessionId={room.hostSessionId} />
+            <div className="flex items-center justify-between gap-2">
+              <ParticipantList roomId={roomId} hostSessionId={room.hostSessionId} />
+              {/* Mobile chat button */}
+              <button
+                onClick={() => setChatOpen(true)}
+                className="md:hidden flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-white text-xs px-3 py-1.5 rounded-lg transition flex-shrink-0"
+              >
+                💬 Chat
+              </button>
+            </div>
 
             {isSeriesLike && isHost && (
               <EpisodeSelector
@@ -171,7 +212,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
           </div>
         </div>
 
-        {/* Chat sidebar */}
+        {/* Desktop chat */}
         <div className="w-72 flex-shrink-0 hidden md:flex flex-col">
           <ChatPanel roomId={roomId} sessionId={sessionId} username={username} />
         </div>
