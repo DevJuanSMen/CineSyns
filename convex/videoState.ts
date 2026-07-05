@@ -13,13 +13,19 @@ export const sync = mutation({
       .unique();
     if (!state) return;
 
-    await ctx.db.patch(state._id, { syncAt: Date.now() });
+    const now = Date.now();
+    await ctx.db.patch(state._id, { syncAt: now });
+
+    const elapsed = state.startedAt ? Math.floor((now - state.startedAt) / 1000) : 0;
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    const timeStr = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 
     await ctx.db.insert("messages", {
       roomId,
       sessionId: "system",
       username: "Sistema",
-      text: "🔄 El host sincronizó la reproducción",
+      text: `🔄 El host va en el minuto ${timeStr} — busca ese tiempo en el player`,
     });
   },
 });

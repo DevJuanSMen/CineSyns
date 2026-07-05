@@ -11,6 +11,7 @@ import EpisodeSelector from "@/components/EpisodeSelector";
 import ParticipantList from "@/components/ParticipantList";
 import UsernameModal from "@/components/UsernameModal";
 import ToastContainer, { showToast } from "@/components/Toast";
+import ElapsedTimer from "@/components/ElapsedTimer";
 import { getSessionId, getUsername } from "@/lib/session";
 import { saveToHistory } from "@/lib/history";
 import { tmdbImage } from "@/lib/vimeus";
@@ -214,19 +215,16 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
               )}
 
               {/* Sync button — host sends, guests receive */}
+              <ElapsedTimer startedAt={videoState?.startedAt} />
+
               {isHost && (
                 <button
                   onClick={() => triggerSync({ roomId, sessionId })}
                   className="flex items-center gap-1.5 bg-violet-700 hover:bg-violet-600 text-white text-xs px-3 py-1.5 rounded-lg transition"
-                  title="Sincroniza tu posición actual con todos en la sala"
+                  title="Publica en el chat el minuto exacto donde vas"
                 >
-                  🔄 Sincronizar
+                  🔄 Anunciar minuto
                 </button>
-              )}
-              {!isHost && (
-                <p className="text-zinc-600 text-xs">
-                  El host puede sincronizar la reproducción para todos
-                </p>
               )}
             </div>
           </div>
