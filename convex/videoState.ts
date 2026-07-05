@@ -1,6 +1,29 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 
+export const sync = mutation({
+  args: { roomId: v.id("rooms"), sessionId: v.string() },
+  handler: async (ctx, { roomId, sessionId }) => {
+    const room = await ctx.db.get(roomId);
+    if (!room || room.hostSessionId !== sessionId) return;
+
+    const state = await ctx.db
+      .query("videoState")
+      .withIndex("by_room", (q) => q.eq("roomId", roomId))
+      .unique();
+    if (!state) return;
+
+    await ctx.db.patch(state._id, { syncAt: Date.now() });
+
+    await ctx.db.insert("messages", {
+      roomId,
+      sessionId: "system",
+      username: "Sistema",
+      text: "🔄 El host sincronizó la reproducción",
+    });
+  },
+});
+
 export const get = query({
   args: { roomId: v.id("rooms") },
   handler: async (ctx, { roomId }) => {

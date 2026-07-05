@@ -35,6 +35,7 @@ export default defineSchema({
     episode: v.optional(v.number()),
     season: v.optional(v.number()),
     startedAt: v.optional(v.number()), // timestamp when current episode/movie started
+    syncAt: v.optional(v.number()),    // timestamp of last sync trigger
     updatedBy: v.string(),
     updatedAt: v.number(),
   }).index("by_room", ["roomId"]),

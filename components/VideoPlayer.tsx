@@ -4,10 +4,16 @@ type Props = {
   embedUrl: string;
   season?: number;
   episode?: number;
-  startedAt?: number; // timestamp when host started — used to sync late joiners
+  startedAt?: number;
+  syncAt?: number; // when set/changed, forces iframe reload with elapsed time
 };
 
-function buildUrl(embedUrl: string, season?: number, episode?: number, startedAt?: number): string {
+function buildUrl(
+  embedUrl: string,
+  season?: number,
+  episode?: number,
+  startedAt?: number
+): string {
   const url = new URL(embedUrl);
   if (season) url.searchParams.set("se", String(season));
   if (episode) url.searchParams.set("ep", String(episode));
@@ -20,12 +26,14 @@ function buildUrl(embedUrl: string, season?: number, episode?: number, startedAt
   return url.toString();
 }
 
-export default function VideoPlayer({ embedUrl, season, episode, startedAt }: Props) {
+export default function VideoPlayer({ embedUrl, season, episode, startedAt, syncAt }: Props) {
   const src = buildUrl(embedUrl, season, episode, startedAt);
+  // syncAt in key forces full iframe reload when host triggers sync
+  const key = `${src}-${syncAt ?? 0}`;
 
   return (
     <iframe
-      key={src}
+      key={key}
       src={src}
       className="w-full h-full block"
       allowFullScreen

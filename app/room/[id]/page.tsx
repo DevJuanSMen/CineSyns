@@ -32,6 +32,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
 
   const join = useMutation(api.rooms.join);
   const ping = useMutation(api.rooms.ping);
+  const triggerSync = useMutation(api.videoState.sync);
 
   // Track previous participant count to detect joins
   const prevParticipantIds = useRef<Set<string>>(new Set());
@@ -179,6 +180,7 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
               season={currentSeason}
               episode={currentEpisode}
               startedAt={videoState?.startedAt}
+              syncAt={videoState?.syncAt}
             />
           </div>
 
@@ -195,20 +197,38 @@ export default function RoomPage({ params }: { params: Promise<{ id: string }> }
               </button>
             </div>
 
-            {isSeriesLike && isHost && (
-              <EpisodeSelector
-                roomId={roomId}
-                sessionId={sessionId}
-                currentSeason={currentSeason ?? 1}
-                currentEpisode={currentEpisode ?? 1}
-              />
-            )}
+            <div className="flex items-center gap-2 flex-wrap">
+              {isSeriesLike && isHost && (
+                <EpisodeSelector
+                  roomId={roomId}
+                  sessionId={sessionId}
+                  currentSeason={currentSeason ?? 1}
+                  currentEpisode={currentEpisode ?? 1}
+                />
+              )}
 
-            {isSeriesLike && !isHost && (
-              <p className="text-zinc-500 text-xs font-mono">
-                T{currentSeason} · E{currentEpisode} — el host controla la navegación
-              </p>
-            )}
+              {isSeriesLike && !isHost && (
+                <p className="text-zinc-500 text-xs font-mono">
+                  T{currentSeason} · E{currentEpisode} — el host controla la navegación
+                </p>
+              )}
+
+              {/* Sync button — host sends, guests receive */}
+              {isHost && (
+                <button
+                  onClick={() => triggerSync({ roomId, sessionId })}
+                  className="flex items-center gap-1.5 bg-violet-700 hover:bg-violet-600 text-white text-xs px-3 py-1.5 rounded-lg transition"
+                  title="Sincroniza tu posición actual con todos en la sala"
+                >
+                  🔄 Sincronizar
+                </button>
+              )}
+              {!isHost && (
+                <p className="text-zinc-600 text-xs">
+                  El host puede sincronizar la reproducción para todos
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
